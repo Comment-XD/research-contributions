@@ -18,7 +18,6 @@ import torch
 
 from monai import data, transforms
 
-
 class Sampler(torch.utils.data.Sampler):
     def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, make_even=True):
         if num_replicas is None:
@@ -78,7 +77,7 @@ def datafold_read(datalist, basedir, fold=0, key="training"):
                 d[k] = [os.path.join(basedir, iv) for iv in d[k]]
             elif isinstance(d[k], str):
                 d[k] = os.path.join(basedir, d[k]) if len(d[k]) > 0 else d[k]
-
+                
     tr = []
     val = []
     for d in json_data:

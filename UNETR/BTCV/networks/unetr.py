@@ -228,3 +228,7 @@ class UNETR(nn.Module):
         out = self.decoder2(dec1, enc1)
         logits = self.out(out)
         return logits
+
+
+
+    

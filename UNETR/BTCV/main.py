@@ -36,7 +36,7 @@ parser.add_argument("--logdir", default="test", type=str, help="directory to sav
 parser.add_argument(
     "--pretrained_dir", default="./pretrained_models/", type=str, help="pretrained checkpoint directory"
 )
-parser.add_argument("--data_dir", default="/dataset/dataset0/", type=str, help="dataset directory")
+parser.add_argument("--data_dir", default="./dataset/", type=str, help="dataset directory")
 parser.add_argument("--json_list", default="dataset_0.json", type=str, help="dataset json file")
 parser.add_argument(
     "--pretrained_model_name", default="UNETR_model_best_acc.pth", type=str, help="pretrained model name"
@@ -95,37 +95,41 @@ parser.add_argument("--smooth_nr", default=0.0, type=float, help="constant added
 
 def main():
     args = parser.parse_args()
-    args.amp = not args.noamp
-    args.logdir = "./runs/" + args.logdir
-    if args.distributed:
-        args.ngpus_per_node = torch.cuda.device_count()
-        print("Found total gpus", args.ngpus_per_node)
-        args.world_size = args.ngpus_per_node * args.world_size
-        mp.spawn(main_worker, nprocs=args.ngpus_per_node, args=(args,))
+    args.amp = not args.noamp # Determine whether or not to use AMP
+    args.logdir = "./runs/" + args.logdir # Sets the log directory 
+    if args.distributed: # if implementing distributed training
+        args.ngpus_per_node = torch.cuda.device_count() # check the number of gpus per node
+        print("Found total gpus", args.ngpus_per_node) 
+        args.world_size = args.ngpus_per_node * args.world_size # multiple the number of gpus by the number of computers 
+        mp.spawn(main_worker, nprocs=args.ngpus_per_node, args=(args,)) # spawn workers for multiprocessing, number of gpus per process
     else:
         main_worker(gpu=0, args=args)
 
-
 def main_worker(gpu, args):
-    if args.distributed:
-        torch.multiprocessing.set_start_method("fork", force=True)
-    np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True)
-    args.gpu = gpu
-    if args.distributed:
-        args.rank = args.rank * args.ngpus_per_node + gpu
-        dist.init_process_group(
+    
+    if args.distributed: # if implementing distributed training
+        
+        torch.multiprocessing.set_start_method("fork", force=True) # set the multiprocessing method to fork
+    np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # sets the print option to .3f
+    args.gpu = gpu # check the number of gpu
+    
+    if args.distributed: # if implementing distributed training
+        args.rank = args.rank * args.ngpus_per_node + gpu #check which rank is the main rank, default=0
+        dist.init_process_group( # initiate distributed training
             backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size, rank=args.rank
         )
-    torch.cuda.set_device(args.gpu)
-    torch.backends.cudnn.benchmark = True
-    args.test_mode = False
-    loader = get_loader(args)
-    print(args.rank, " gpu", args.gpu)
+    torch.cuda.set_device(args.gpu) # set the device to the gpus
+    torch.backends.cudnn.benchmark = True # enable cudnn benchmark
+    args.test_mode = False # set the test mode to False b/c we are in training
+    
+    loader = get_loader(args) # load the datalodaers
+    print(args.rank, " gpu", args.gpu) # print the rank
     if args.rank == 0:
         print("Batch size is:", args.batch_size, "epochs", args.max_epochs)
-    inf_size = [args.roi_x, args.roi_y, args.roi_z]
+    inf_size = [args.roi_x, args.roi_y, args.roi_z] 
     pretrained_dir = args.pretrained_dir
     if (args.model_name is None) or args.model_name == "unetr":
+        # Create
         model = UNETR(
             in_channels=args.in_channels,
             out_channels=args.out_channels,
